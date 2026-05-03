@@ -303,7 +303,8 @@ function getHoveredHandle(pos, rect) {
     return null;
 }
 
-canvas.addEventListener('mousemove', (e) => {
+canvas.style.touchAction = 'none';
+canvas.addEventListener('pointermove', (e) => {
     if (!mainImg) return;
     const mousePos = getMousePos(canvas, e);
     let needsRedraw = false;
@@ -394,8 +395,9 @@ canvas.addEventListener('mousemove', (e) => {
     if (needsRedraw) draw();
 });
 
-canvas.addEventListener('mousedown', (e) => {
+canvas.addEventListener('pointerdown', (e) => {
     if (!mainImg) return;
+    canvas.setPointerCapture(e.pointerId);
     const mousePos = getMousePos(canvas, e);
     
     // Check handle hit first
@@ -451,14 +453,30 @@ canvas.addEventListener('mousedown', (e) => {
     }
 });
 
-canvas.addEventListener('mouseup', () => {
+canvas.addEventListener('pointerup', (e) => {
+    if (canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+    }
     activeAction = null;
     activeElement = null;
     activeHandle = null;
     draw(); 
 });
 
-canvas.addEventListener('mouseleave', () => {
+canvas.addEventListener('pointerleave', (e) => {
+    activeAction = null;
+    activeElement = null;
+    activeHandle = null;
+    logoState.isHovered = false;
+    textState.isHovered = false;
+    canvas.style.cursor = 'default';
+    draw();
+});
+
+canvas.addEventListener('pointercancel', (e) => {
+    if (canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+    }
     activeAction = null;
     activeElement = null;
     activeHandle = null;
