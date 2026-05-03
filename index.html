@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Watermarker Pro</title>
+    <meta name="description" content="Add logos and text to your images easily.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Brand<span class="highlight">Mark</span></h1>
+            <p>Customize your images with logos and text</p>
+        </header>
+
+        <main class="main-content">
+            <section class="controls-panel">
+                <div class="control-group">
+                    <label>1. Upload Main Image</label>
+                    <div class="drop-zone" id="mainImageZone">
+                        <span class="drop-zone-text" id="mainImageText">Drag & Drop or Click to Upload</span>
+                        <input type="file" id="mainImage" accept="image/*" class="drop-zone-input">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>2. Upload Logo</label>
+                    <div class="drop-zone" id="logoImageZone">
+                        <span class="drop-zone-text" id="logoImageText">Drag & Drop or Click to Upload</span>
+                        <input type="file" id="logoImage" accept="image/*" class="drop-zone-input">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label for="logoPosition">Logo Position</label>
+                    <select id="logoPosition">
+                        <option value="top-left">Top Left</option>
+                        <option value="top-right">Top Right</option>
+                        <option value="bottom-left">Bottom Left</option>
+                        <option value="bottom-right" selected>Bottom Right</option>
+                        <option value="center">Center</option>
+                        <option value="custom">Custom (Drag & Drop)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="logoSize">Logo Size (Scale)</label>
+                    <input type="range" id="logoSize" min="0.05" max="1" step="0.05" value="0.2">
+                </div>
+
+                <div class="control-group">
+                    <label for="addressText">3. Address / Text</label>
+                    <input type="text" id="addressText" placeholder="Enter address here...">
+                </div>
+
+                <div class="control-group">
+                    <label for="textColor">Text Color</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="color" id="textColor" value="#ffffff" style="width: 50px; padding: 0; height: 40px; cursor: pointer;">
+                        <input type="range" id="textSize" min="0.01" max="0.15" step="0.01" value="0.03" style="flex-grow: 1;">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label for="textPosition">Text Position</label>
+                    <select id="textPosition">
+                        <option value="top-left">Top Left</option>
+                        <option value="top-right">Top Right</option>
+                        <option value="bottom-left" selected>Bottom Left</option>
+                        <option value="bottom-right">Bottom Right</option>
+                        <option value="center">Center</option>
+                        <option value="custom">Custom (Drag & Drop)</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                    <button id="deleteBtn" class="btn" style="background: #ef4444; color: white; flex: 1; margin-top: 0;" disabled>Delete Selected</button>
+                    <button id="downloadBtn" class="btn primary-btn" style="flex: 1; margin-top: 0;" disabled>Download</button>
+                </div>
+            </section>
+
+            <section class="preview-panel">
+                <div class="canvas-container">
+                    <canvas id="previewCanvas"></canvas>
+                    <div class="placeholder-text" id="placeholderText">Upload an image to start</div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
