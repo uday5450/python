@@ -17,11 +17,17 @@ const logoImageText = document.getElementById('logoImageText');
 let mainImg = null;
 let logoImg = null;
 
-let logoState = { x: 0, y: 0, w: 0, h: 0, isDragging: false, isHovered: false, custom: false };
-let textState = { x: 0, y: 0, w: 0, h: 0, isDragging: false, isHovered: false, custom: false, text: '', color: '#ffffff', size: 0.03 };
+let logoState = { x: 0, y: 0, w: 0, h: 0, isHovered: false, custom: false };
+let textState = { x: 0, y: 0, w: 0, h: 0, isHovered: false, custom: false, text: '', color: '#ffffff', size: 0.03 };
 
 let selectedElement = null; // 'logo' or 'text'
+
+// Interaction state
+let activeAction = null; // 'drag' or 'resize'
+let activeElement = null; // 'logo' or 'text'
+let activeHandle = null; // 0: TL, 1: TR, 2: BL, 3: BR
 let dragStartX, dragStartY;
+let initialRect = null;
 
 // Read file as Data URL
 function readFile(file) {
@@ -168,7 +174,7 @@ function drawBoundingBox(rect) {
     ctx.setLineDash([]);
 
     // Draw corner handles
-    const handleSize = Math.max(8, canvas.width * 0.01);
+    const handleSize = Math.max(8, canvas.width * 0.015);
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#3b82f6';
     ctx.lineWidth = 2;
@@ -272,39 +278,119 @@ function isInside(pos, rect, padding = 0) {
            pos.y < rect.y + rect.h + padding;
 }
 
+function getHoveredHandle(pos, rect) {
+    const padding = 6;
+    const x = rect.x - padding;
+    const y = rect.y - padding;
+    const w = rect.w + padding * 2;
+    const h = rect.h + padding * 2;
+    const handleSize = Math.max(12, canvas.width * 0.02);
+
+    const corners = [
+        { cx: x, cy: y, cursor: 'nwse-resize' }, // 0: TL
+        { cx: x + w, cy: y, cursor: 'nesw-resize' }, // 1: TR
+        { cx: x, cy: y + h, cursor: 'nesw-resize' }, // 2: BL
+        { cx: x + w, cy: y + h, cursor: 'nwse-resize' } // 3: BR
+    ];
+
+    for (let i = 0; i < corners.length; i++) {
+        const c = corners[i];
+        if (pos.x >= c.cx - handleSize && pos.x <= c.cx + handleSize &&
+            pos.y >= c.cy - handleSize && pos.y <= c.cy + handleSize) {
+            return { index: i, cursor: c.cursor };
+        }
+    }
+    return null;
+}
+
 canvas.addEventListener('mousemove', (e) => {
     if (!mainImg) return;
     const mousePos = getMousePos(canvas, e);
     let needsRedraw = false;
-    let hoveringSomething = false;
+    let canvasCursor = 'default';
 
-    if (logoState.isDragging) {
-        logoState.x = mousePos.x - dragStartX;
-        logoState.y = mousePos.y - dragStartY;
+    if (activeAction === 'drag') {
+        const state = activeElement === 'logo' ? logoState : textState;
+        state.x = mousePos.x - dragStartX;
+        state.y = mousePos.y - dragStartY;
+        canvasCursor = 'move';
         needsRedraw = true;
-    } else if (textState.isDragging) {
-        textState.x = mousePos.x - dragStartX;
-        textState.y = mousePos.y - dragStartY;
+    } else if (activeAction === 'resize') {
+        const state = activeElement === 'logo' ? logoState : textState;
+        // Calculate new size based on which handle is dragged
+        let newW = initialRect.w;
+        
+        // For simplicity, we just use X-axis drag distance to scale proportionally
+        // BR corner (index 3) increases size moving right/down
+        let dx = mousePos.x - dragStartX;
+        
+        if (activeHandle === 0 || activeHandle === 2) dx = -dx; // Left handles increase size moving left
+        
+        newW = Math.max(20, initialRect.w + dx);
+        
+        const scaleRatio = newW / initialRect.w;
+        const newH = initialRect.h * scaleRatio;
+        
+        if (activeElement === 'logo') {
+            const maxDim = Math.max(canvas.width, canvas.height);
+            let newScale = newW / maxDim; // approximate reverse
+            // Keep bounds
+            newScale = Math.min(Math.max(newScale, 0.05), 1);
+            logoSizeInput.value = newScale;
+        } else {
+            const maxDim = Math.max(canvas.width, canvas.height);
+            let newScale = newH / maxDim;
+            newScale = Math.min(Math.max(newScale, 0.01), 0.15);
+            textSizeInput.value = newScale;
+        }
+        
+        updatePositions(); // Apply slider changes instantly
+        
+        // Adjust x, y so opposite corner stays pinned
+        if (activeHandle === 0) {
+            state.x = initialRect.x + initialRect.w - state.w;
+            state.y = initialRect.y + initialRect.h - state.h;
+        } else if (activeHandle === 1) {
+            state.y = initialRect.y + initialRect.h - state.h;
+        } else if (activeHandle === 2) {
+            state.x = initialRect.x + initialRect.w - state.w;
+        }
+        
+        canvasCursor = 'nwse-resize';
         needsRedraw = true;
     } else {
+        // Hover logic
         const wasLogoHovered = logoState.isHovered;
         const wasTextHovered = textState.isHovered;
 
         logoState.isHovered = logoImg ? isInside(mousePos, logoState, 10) : false;
         textState.isHovered = textState.text ? isInside(mousePos, textState, 10) : false;
 
-        // Prevent dual hover
         if (logoState.isHovered && textState.isHovered) {
-            textState.isHovered = false;
+            if (selectedElement === 'text') logoState.isHovered = false;
+            else textState.isHovered = false;
+        }
+
+        // Check if hovering over handles of selected element
+        let handleHit = null;
+        if (selectedElement === 'logo' && logoImg) {
+            handleHit = getHoveredHandle(mousePos, logoState);
+        } else if (selectedElement === 'text' && textState.text) {
+            handleHit = getHoveredHandle(mousePos, textState);
+        }
+
+        if (handleHit) {
+            canvasCursor = handleHit.cursor;
+        } else if (logoState.isHovered || textState.isHovered) {
+            canvasCursor = 'move';
         }
 
         if (wasLogoHovered !== logoState.isHovered || wasTextHovered !== textState.isHovered) {
             needsRedraw = true;
         }
-        hoveringSomething = logoState.isHovered || textState.isHovered;
-        canvas.style.cursor = hoveringSomething ? 'move' : 'default';
     }
 
+    canvas.style.cursor = canvasCursor;
     if (needsRedraw) draw();
 });
 
@@ -312,17 +398,45 @@ canvas.addEventListener('mousedown', (e) => {
     if (!mainImg) return;
     const mousePos = getMousePos(canvas, e);
     
-    let clickedElement = null;
+    // Check handle hit first
+    let handleHit = null;
+    if (selectedElement === 'logo' && logoImg) {
+        handleHit = getHoveredHandle(mousePos, logoState);
+        if (handleHit) activeElement = 'logo';
+    } 
+    if (!handleHit && selectedElement === 'text' && textState.text) {
+        handleHit = getHoveredHandle(mousePos, textState);
+        if (handleHit) activeElement = 'text';
+    }
 
+    if (handleHit) {
+        activeAction = 'resize';
+        activeHandle = handleHit.index;
+        dragStartX = mousePos.x;
+        dragStartY = mousePos.y;
+        
+        const state = activeElement === 'logo' ? logoState : textState;
+        state.custom = true;
+        if (activeElement === 'logo') logoPositionSelect.value = 'custom';
+        else textPositionSelect.value = 'custom';
+        
+        initialRect = { x: state.x, y: state.y, w: state.w, h: state.h };
+        return;
+    }
+
+    // Check body hit
+    let clickedElement = null;
     if (logoState.isHovered) {
-        logoState.isDragging = true;
+        activeAction = 'drag';
+        activeElement = 'logo';
         logoState.custom = true;
         logoPositionSelect.value = 'custom';
         dragStartX = mousePos.x - logoState.x;
         dragStartY = mousePos.y - logoState.y;
         clickedElement = 'logo';
     } else if (textState.isHovered) {
-        textState.isDragging = true;
+        activeAction = 'drag';
+        activeElement = 'text';
         textState.custom = true;
         textPositionSelect.value = 'custom';
         dragStartX = mousePos.x - textState.x;
@@ -338,14 +452,16 @@ canvas.addEventListener('mousedown', (e) => {
 });
 
 canvas.addEventListener('mouseup', () => {
-    logoState.isDragging = false;
-    textState.isDragging = false;
+    activeAction = null;
+    activeElement = null;
+    activeHandle = null;
     draw(); 
 });
 
 canvas.addEventListener('mouseleave', () => {
-    logoState.isDragging = false;
-    textState.isDragging = false;
+    activeAction = null;
+    activeElement = null;
+    activeHandle = null;
     logoState.isHovered = false;
     textState.isHovered = false;
     canvas.style.cursor = 'default';
@@ -355,7 +471,6 @@ canvas.addEventListener('mouseleave', () => {
 // Keyboard Delete
 document.addEventListener('keydown', (e) => {
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
-        // Only delete if we are not actively typing in an input
         if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
             deleteSelectedElement();
         }
@@ -364,8 +479,6 @@ document.addEventListener('keydown', (e) => {
 
 function downloadImage() {
     if (!mainImg) return;
-    
-    // Temporarily remove highlights for clean download
     logoState.isHovered = false;
     textState.isHovered = false;
     const tempSelected = selectedElement;
@@ -377,7 +490,6 @@ function downloadImage() {
     link.href = canvas.toDataURL('image/png');
     link.click();
 
-    // Restore state
     selectedElement = tempSelected;
     draw();
 }
